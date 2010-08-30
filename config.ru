@@ -1,2 +1,2 @@
-require 'rabbits'
+require 'bloggl'
 run Sinatra::Application

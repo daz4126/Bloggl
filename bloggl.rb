@@ -14,14 +14,13 @@ class Post
   include DataMapper::Resource 
   property :id,           Serial
   property :title,        String
-  property :slug,         String, :default => Proc.new { |r, p| r.entry.split(/\r\n|\n/).first.downcase.gsub(/\W/,'-').squeeze('-').chomp('-') }
+  property :slug,         String, :default => Proc.new { |r, p| r.body.split(/\r\n|\n/).first.downcase.gsub(/\W/,'-').squeeze('-').chomp('-') }
   property :tags,         String
-  property :body,         Text
-  property :entry,        Text, :required => true
+  property :body,         Text, :required => true
   property :created_at,   DateTime
   property :updated_at,   DateTime    
   before :save do
-    post = self.entry.split(/\r\n|\n/)
+    post = self.body.split(/\r\n|\n/)
     self.title = post.slice!(0)
     self.tags = post.slice!(0)
     self.body = post.join("\r\n").strip
@@ -42,11 +41,11 @@ not_found { haml :'404' }
 get('/styles.css'){ content_type 'text/css', :charset => 'utf-8' ; sass :styles }
 
 get '/' do
-  @post,@posts = Post.new,Post.all(:order => [ :created_at.desc ])
+  @posts = Post.all(:order => [ :created_at.desc ])
   haml :index, :format => :html5
 end
 post '/' do
-  Post.create(:entry => params[:post])
+  Post.create(:body => params[:post])
   redirect '/'
 end
 
@@ -58,12 +57,13 @@ end
 
 put '/:id' do
   protected!
-  if post = Post.get(params[:id]).update(:entry => params[:post])
+  @post = Post.get(params[:id])
+  if post =@post.update(:body => params[:post])
     status 201
-    redirect post.long_url
+    redirect @post.long_url
   else
-    status 412
-    redirect '/edit/' + params[:id]  
+    status 400
+    haml :edit, :format => :html5
   end
 end
 
@@ -72,6 +72,7 @@ get '/delete/:id' do
   @post = Post.get(params[:id])
   haml :delete, :format => :html5
 end
+
 delete '/:id' do
   protected!
   Post.get(params[:id]).destroy
@@ -93,27 +94,33 @@ get '/archive' do
   @posts = Post.all(:order => [ :created_at.desc ])
   haml :list, { :format => :html5, :locals => { :title => "Archive" } }
 end
+
 get '/feed' do
   @posts = Post.all(:order => [ :created_at.desc ], :limit=>10)
   content_type 'application/rss+xml'
   haml :rss, { :layout => false }
 end
+
 get '/admin' do
   haml :admin, :format => :html5
 end
+
 post '/admin' do
-	response.set_cookie(settings.author, settings.value) if params[:password] == settings.password
+	response.set_cookie(settings.author, settings.token) if params[:password] == settings.password
 	redirect '/'
 end
+
 get '/logout' do
   response.set_cookie(settings.author, false)
 	redirect '/'
 end
+
 get '/:id' do
   @post = Post.get(params[:id])
   raise error(404) unless @post
   haml :post, :format => :html5
 end
+
 DataMapper.auto_upgrade!
 __END__
 @@layout
@@ -125,7 +132,8 @@ __END__
     %link(rel="stylesheet" media="screen, projection" href="/styles.css")
   %body
     %h1 <a href="/">#{settings.title}</a>
-    = yield  
+    = yield
+
 @@index
 - if admin?
   %form#post(action="/" method="POST")
@@ -147,7 +155,7 @@ __END__
           %footer
             %ul.meta
               %li.tags= post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\">#{tag}</a>" }.join(" ") if post.tags
-              %li.shorturl <a href="#{post.short_url}" title="Short URL">#{post.short_url}</a>
+              %li.shorturl <a href="#{post.short_url}" title="Short URL">#{settings.url}#{post.short_url}</a>
               %li.posted 
                 %time{:datetime => post.created_at}
                   #{post[:created_at].strftime("%d")}/#{post[:created_at].strftime("%b")}/#{post[:created_at].strftime("%Y")}
@@ -170,7 +178,7 @@ __END__
   %footer
     %ul.meta
       %li.tags= @post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\" rel=\"tag\">#{tag}</a>" }.join(" ") if @post.tags
-      %li.shorturl <a href="#{@post.short_url}" title="Short URL">#{@post.short_url}</a>
+      %li.shorturl <a href="#{@post.short_url}" title="Short URL">#{settings.url}#{@post.short_url}</a>
       %li.posted 
         %time{:datetime => @post.created_at}
           #{@post[:created_at].strftime("%d")}/#{@post[:created_at].strftime("%b")}/#{@post[:created_at].strftime("%Y")}
@@ -184,6 +192,7 @@ __END__
   %script(type="text/javascript" src="http://disqus.com/forums/#{settings.disqus_shortname}/embed.js")
   %noscript <a href="http://{settings.disqus_shortname}.disqus.com/?url=ref">View the discussion thread.</a>
   %a.dsq-brlink(href="http://disqus.com")blog comments powered by <span class="logo-disqus">Disqus</span>
+
 @@edit
 %form#post(action="/#{@post.id}" method="POST")
   %input(type="hidden" name="_method" value="PUT")
@@ -191,17 +200,21 @@ __END__
     %legend Update Post
     = haml :form, :layout => false
   %input(type="submit" value="Update") or <a href='/'>cancel</a>
+
 @@form
-%textarea#post(rows="8" name="post")= @post.entry
+%textarea#post(rows="16" name="post")= (@post.title + "\r\n" + @post.tags + "\r\n\r\n" + @post.body) if @post
+
 @@delete
 %h3 Are you sure you want to delete #{@post.title}?
 %form(action="//#{@post.id}" method="post")
   %input(type="hidden" name="_method" value="DELETE")
   %input(type="submit" value="Delete") or <a href="/">Cancel</a>  
+  
 @@admin
 %form(action="/admin" method="post")
   %input(type="password" name="password")
   %input(type="submit" value="Login") or <a href="/">Cancel</a>
+
 @@rss
 !!! xml
 %feed(xmlns="http://www.w3.org/2005/Atom")
@@ -224,18 +237,46 @@ __END__
 @@404
 %h3 Sorry, but that page cannot be found
 %p Why not have a look at the <a href="/archive">archive</a>?    
+
 @@styles
 h2
   color: dodgerblue
   margin: 0
-.tags
-  color: #999
-  font-weight: bold
+article h3
+  font: 24px/1.2 verdana,sans-serif
+  margin: 0
+  text-transform: uppercase
+  a, a:visited
+    text-decoration: none
+    color: dodgerblue
+  a:hover
+    color: pink
+.tags, .tweet
+  a,a:visited
+    color: #fff
+    background: #999
+    padding: 0 4px
+    border-radius: 6px
+    font-weight: bold
+    text-decoration: none
+    &:hover
+      background: #666
+.shorturl
+  clear: left
+  a, a:visited
+    color: #999
+article footer
+  font: 10px/1.6 verdana,sans-serif
+  text-transform: uppercase
+  overflow: hidden
+  ul li
+    float: left
+    margin-right: 5px
 #post
   width: 60%
   margin: 0 auto
   textarea
-    font: 22px/1.5 georgia,sans-serif
+    font: 18px/1.2 georgia,sans-serif
     width: 100%
 .meta
   margin: 0

@@ -37,13 +37,9 @@ helpers do
 	def protected! ; stop [ 401, 'Not authorized' ] unless admin? ; end
 end
 
-
-
 not_found { haml :'404' }
 
-get '/styles.css' do
-  content_type 'text/css', :charset => 'utf-8' ; sass :styles
-end
+get('/styles.css'){ content_type 'text/css', :charset => 'utf-8' ; sass :styles }
 
 get '/' do
   @post,@posts = Post.new,Post.all(:order => [ :created_at.desc ])
@@ -53,11 +49,13 @@ post '/' do
   Post.create(:entry => params[:post])
   redirect '/'
 end
+
 get '/edit/:id' do
   protected!
   @post = Post.get(params[:id])
   haml :edit, :format => :html5
 end
+
 put '/:id' do
   protected!
   if post = Post.get(params[:id]).update(:entry => params[:post])
@@ -68,6 +66,7 @@ put '/:id' do
     redirect '/edit/' + params[:id]  
   end
 end
+
 get '/delete/:id' do
   protected!
   @post = Post.get(params[:id])
@@ -78,35 +77,26 @@ delete '/:id' do
   Post.get(params[:id]).destroy
   redirect '/'  
 end
+
 get '/:year/:month/:day/:slug' do
   @post = Post.first(:slug => params[:slug])
   raise error(404) unless @post
   haml :post, :format => :html5
 end
+
 get '/tags/:tag' do
   @posts = Post.all(:tags.like => "%#{params[:tag]}%",:order => [ :created_at.desc ])
   haml :list, { :format => :html5, :locals => { :title => "List of posts tagged with #{params[:tag]}" } }
 end
-get '/posts/:year' do
-  @posts = Post.all(:created_at.gte => "#{params[:year]}-01-01",:created_at.lte => "#{params[:year]}-12-31",:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "List of posts from #{params[:year]}" } }
-end
-get '/posts/:year/:month' do
-  @posts = Post.all(:created_at.gte => "#{params[:year]}-#{params[:month]}-01",:created_at.lte => "#{params[:year]}-#{params[:month]}-31",:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "List of posts from #{params[:month]},#{params[:year]}" } }
-end
-# not working at the moment
-get '/posts/:year/:month/:day' do
-  @posts = Post.all(:created_at => "#{params[:year]}-#{params[:month]}-#{params[:day]}",:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "Archive" } }
-end
+
 get '/archive' do
   @posts = Post.all(:order => [ :created_at.desc ])
   haml :list, { :format => :html5, :locals => { :title => "Archive" } }
 end
 get '/feed' do
   @posts = Post.all(:order => [ :created_at.desc ], :limit=>10)
-  haml :rss, { :layout => false, :format => :xhtml }
+  content_type 'application/rss+xml'
+  haml :rss, { :layout => false }
 end
 get '/admin' do
   haml :admin, :format => :html5
@@ -143,42 +133,48 @@ __END__
       %legend New Post
       = haml :form, :layout => false
     %input(type="submit" value="Create") or <a href='/logout'>logout</a> 
-- if @posts.any?
-  %ul#posts
-    - @posts.each do |post|
-      %li{:id => "post-#{post.id}"}
-        %h3
-          %a(href="#{post.long_url}")= post.title
-        %p.summary
-          :markdown
-            #{post.summary}...
-- else
-  %p No posts!
+=haml :list, { :format => :html5, :layout => false, :locals => { :title => "Recent Posts" } }
   
 @@list
-%h3= title || "List of Posts"
+%h2= title || "List of Posts"
 - if @posts.any?
-  %ul#posts
+  %ol#posts.hfeed
     - @posts.each do |post|
-      %li{:id => "post-#{post.id}"}
-        .date= post.created_at.strftime("%d %b %Y")
-        %h3 <a href="#{post.long_url}">#{post.title}</a>
+      %li
+        %article.hentry{:id => "post-#{post.id}"}
+          %header
+            %h3 <a href="#{post.long_url}">#{post.title}</a>
+          %footer
+            %ul.meta
+              %li.tags= post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\">#{tag}</a>" }.join(" ") if post.tags
+              %li.shorturl <a href="#{post.short_url}" title="Short URL">#{post.short_url}</a>
+              %li.posted 
+                %time{:datetime => post.created_at}
+                  #{post[:created_at].strftime("%d")}/#{post[:created_at].strftime("%b")}/#{post[:created_at].strftime("%Y")}
+              %li.tweet <a href="http://twitter.com/?status=#{post.title} by #{settings.author}: #{settings.url}#{post.short_url}">Tweet this</a>
+          %p.summary
+            :markdown
+              #{post.summary}... 
 - else
-  %p No posts! 
+  %p No posts!
+
+
 @@post
-%article
+%article.hentry
   %header
   - if admin?
     .admin
       %a(href="/edit/#{@post.id}") EDIT
       %a(href="/delete/#{@post.id}") DELETE
-  %h2= @post.title
-  %ul.meta
-    %li.tags= @post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\">#{tag}</a>" }.join(" ")
-    %li.posted 
-      %time{:datetime => @post.created_at}
-        #{@post[:created_at].strftime("%d")}/#{@post[:created_at].strftime("%b")}/#{@post[:created_at].strftime("%Y")}
-    %li.tweet <a href="http://twitter.com/?status=#{@post.title} by #{settings.author}: #{settings.url}#{@post.short_url}">Tweet this</a>
+  %h2.entry-title= @post.title
+  %footer
+    %ul.meta
+      %li.tags= @post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\" rel=\"tag\">#{tag}</a>" }.join(" ") if @post.tags
+      %li.shorturl <a href="#{@post.short_url}" title="Short URL">#{@post.short_url}</a>
+      %li.posted 
+        %time{:datetime => @post.created_at}
+          #{@post[:created_at].strftime("%d")}/#{@post[:created_at].strftime("%b")}/#{@post[:created_at].strftime("%Y")}
+      %li.tweet <a href="http://twitter.com/?status=#{@post.title} by #{settings.author}: #{settings.url}#{@post.short_url}">Tweet this</a>
 %div
   :markdown
     #{@post.body}

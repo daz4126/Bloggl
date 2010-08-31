@@ -1,5 +1,7 @@
 require 'sinatra'
 require 'data_mapper'
+require 'haml'
+require 'sass'
 
 set :title, ENV['TITLE'] ||'Bloggl'
 set :author, ENV['AUTHOR'] ||'@daz4126'
@@ -29,7 +31,6 @@ class Post
   def short_url ; "/" + self.id.to_s ; end
   def long_url ; "/#{self.created_at.year.to_s}/#{self.created_at.month.to_s}/#{self.created_at.day.to_s}/#{self.slug}"; end
 end
-
 
 helpers do
 	def admin? ; request.cookies[settings.author] == settings.token ; end
@@ -95,6 +96,12 @@ get '/archive' do
   haml :list, { :format => :html5, :locals => { :title => "Archive" } }
 end
 
+#will probably ditch this
+get '/posts/:year/:month' do
+  @posts = Post.all(:created_at.gte => "#{params[:year]}-#{params[:month]}-01",:created_at.lte => "#{params[:year]}-#{params[:month]}-31",:order => [ :created_at.desc ])
+  haml :list, { :format => :html5, :locals => { :title => "List of posts from #{params[:month]},#{params[:year]}" } }
+end
+
 get '/feed' do
   @posts = Post.all(:order => [ :created_at.desc ], :limit=>10)
   content_type 'application/rss+xml'
@@ -136,11 +143,12 @@ __END__
 
 @@index
 - if admin?
+  %p.logout You are logged in as #{settings.author} (<a href='/logout'>logout</a>)
   %form#post(action="/" method="POST")
     %fieldset
       %legend New Post
       = haml :form, :layout => false
-    %input(type="submit" value="Create") or <a href='/logout'>logout</a> 
+    %input(type="submit" value="Create") 
 =haml :list, { :format => :html5, :layout => false, :locals => { :title => "Recent Posts" } }
   
 @@list

@@ -1,12 +1,12 @@
 require 'sinatra'
 require 'data_mapper'
 
-set :title, ENV['title'] ||'Bloggl'
-set :author, ENV['author'] ||'@daz4126'
-set :url, ENV['url'] ||'http://bloggl.com'
-set :value, ENV['value'] || 'akmxuGD5qige'
-set :password, ENV['password'] || 'secret'
-set :disqus_shortname, ENV['disqus'] ||nil
+set :title, ENV['TITLE'] ||'Bloggl'
+set :author, ENV['AUTHOR'] ||'@daz4126'
+set :url, ENV['URL'] ||'http://bloggl.com'
+set :token, ENV['TOKEN'] || 'akmxuGD5qige'
+set :password, ENV['PASSWORD'] || 'secret'
+set :disqus_shortname, ENV['DISQUS'] ||nil
 
 DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
 
@@ -33,7 +33,7 @@ end
 
 
 helpers do
-	def admin? ; request.cookies[settings.author] == settings.value ; end
+	def admin? ; request.cookies[settings.author] == settings.token ; end
 	def protected! ; stop [ 401, 'Not authorized' ] unless admin? ; end
 end
 

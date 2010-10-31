@@ -71,7 +71,7 @@ post '/admin' do
 end
 get('/logout'){ response.set_cookie(settings.author, false) ;	redirect '/' }
 get('/:id'){ post = Post.get(params[:id]) ; raise error(404) unless post ; redirect post.long_url }
-DataMapper.auto_migrate!
+DataMapper.auto_upgrade!
 __END__
 @@layout
 !!! 5

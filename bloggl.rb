@@ -1,6 +1,5 @@
 %w[rubygems sinatra data_mapper haml sass].each{ |lib| require lib }
 DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
-
 set :title, ENV['TITLE'] ||'Bloggl'
 set :author, ENV['AUTHOR'] ||'@daz4126'
 set :url, ENV['URL'] ||'http://bloggl.com'
@@ -8,7 +7,6 @@ set :token, ENV['TOKEN'] || 'akmxuGD5qige'
 set :password, ENV['PASSWORD'] || 'secret'
 set :disqus, ENV['DISQUS'] ||nil
 set :haml, { :format => :html5 }
-
 class Post
   include DataMapper::Resource 
   property :id,           Serial
@@ -20,40 +18,23 @@ class Post
   property :updated_at,   DateTime    
   before :save do
     post = self.body.split(/\r\n|\n/)
-    self.title = post.slice!(0)
-    self.tags = post.slice!(0)
+    self.title = post.slice!(0); self.tags = post.slice!(0)
     self.body = post.join("\r\n").strip
   end
   def summary ; self.body[0,100] ; end
   def short_url ; "/" + self.id.to_s ; end
   def long_url ; "/#{self.created_at.year.to_s}/#{self.created_at.month.to_s}/#{self.created_at.day.to_s}/#{self.slug}"; end
 end
-
 helpers do
 	def admin? ; request.cookies[settings.author] == settings.token ; end
 	def protected! ; halt [ 401, 'Not authorized' ] unless admin? ; end
 end
-
 not_found { haml :'404' }
 get('/styles.css'){ content_type 'text/css', :charset => 'utf-8' ; scss :styles }
 get('/application.js') { content_type 'text/javascript' ; render :str, :js, :layout => false }
-
-get '/' do
-  @posts = Post.all(:order => [ :created_at.desc ])
-  haml :index
-end
-
-post '/' do
-  Post.create(:body => params[:post])
-  redirect '/'
-end
-
-get '/edit/:id' do
-  protected!
-  @post = Post.get(params[:id])
-  haml :edit
-end
-
+get('/'){ @posts = Post.all(:order => [ :created_at.desc ]) ;   haml :index }
+post('/'){ Post.create(:body => params[:post]) ;   redirect '/' }
+get('/edit/:id'){ protected! ; @post = Post.get(params[:id]) ; haml :edit }
 put '/:id' do
   protected!
   @post = Post.get(params[:id])
@@ -65,54 +46,31 @@ put '/:id' do
     haml :edit
   end
 end
-
-get '/delete/:id' do
-  protected!
-  @post = Post.get(params[:id])
-  haml :delete
-end
-
-delete '/:id' do
-  protected!
-  Post.get(params[:id]).destroy
-  redirect '/'  
-end
-
+get('/delete/:id'){ protected! ; @post = Post.get(params[:id]) ; haml :delete }
+delete('/:id'){ protected! ; Post.get(params[:id]).destroy ; redirect '/'  }
 get '/:year/:month/:day/:slug' do
   @post = Post.first(:slug => params[:slug])
-  raise error(404) unless @post
-  haml :post
+  raise error(404) unless @post ; haml :post
 end
-
 get '/tags/:tag' do
   @posts = Post.all(:tags.like => "%#{params[:tag]}%",:order => [ :created_at.desc ])
   haml :list, :locals => { :title => "List of posts tagged with #{params[:tag]}" }
 end
-
 get '/archive' do
   @posts = Post.all(:order => [ :created_at.desc ])
   haml :list, :locals => { :title => "Archive" }
 end
-
 get '/feed' do
   @posts = Post.all(:order => [ :created_at.desc ], :limit=>10)
-  content_type 'application/rss+xml'
-  haml :rss, { :layout => false }
+  content_type 'application/rss+xml' ; haml :rss, { :layout => false }
 end
-
 get('/admin'){ haml :admin }
 post '/admin' do
 	response.set_cookie(settings.author, settings.token) if params[:password] == settings.password
 	redirect '/'
 end
 get('/logout'){ response.set_cookie(settings.author, false) ;	redirect '/' }
-
-get '/:id' do
-  post = Post.get(params[:id])
-  raise error(404) unless post
-  redirect post.long_url
-end
-
+get('/:id'){ post = Post.get(params[:id]) ; raise error(404) unless post ; redirect post.long_url }
 DataMapper.auto_upgrade!
 __END__
 @@layout
@@ -122,7 +80,6 @@ __END__
     %meta(charset="utf-8")
     %title= settings.title
     %link(rel="stylesheet" media="screen, projection" href="/styles.css")
-    %script(src="http://rightjs.org/hotlink/right.js")
     %script(src="/application.js")
   %body
     %header(role="banner")
@@ -132,6 +89,7 @@ __END__
       %nav
         %ul(role="navigation")
           %li <a href="/archive" rel="archives">archive</a>
+          %li <a href="/feed">RSS Feed</a>
       %small &copy; Copyright #{settings.author} #{Time.now.year}. All Rights Reserved.
 
 @@index
@@ -234,9 +192,6 @@ __END__
 %p Why not have a look at the <a href="/archive" rel="archives">archive</a>?
 
 @@js
-"h2".onClick(function(event) {
-  this.highlight();
-});
 
 @@styles
 @import url("http://fonts.googleapis.com/css?family=Droid+Sans+Serif&subset=latin");

@@ -5,7 +5,7 @@ set :author, ENV['AUTHOR'] ||'@daz4126'
 set :url, ENV['URL'] ||'http://bloggl.com'
 set :token, ENV['TOKEN'] || 'akmxuGD5qige'
 set :password, ENV['PASSWORD'] || 'secret'
-set :disqus, ENV['DISQUS'] ||nil
+set :disqus, ENV['DISQUS'] || nil
 set :haml, { :format => :html5 }
 class Post
   include DataMapper::Resource 
@@ -91,12 +91,8 @@ __END__
           %li <a href="/archive" rel="archives">archive</a>
           %li <a href="/feed">RSS Feed</a>
       %small &copy; Copyright #{settings.author} #{Time.now.year}. All Rights Reserved.
-    %script
-      var disqus_shortname = 'bloggl';
-      (function () {
-        var s = document.createElement('script'); s.async = true;
-        s.src = 'http://disqus.com/forums/bloggl/count.js';
-        (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);}());
+    - if settings.disqus
+      %script var disqus_shortname = 'bloggl';(function () {var s = document.createElement('script'); s.async = true;s.src = 'http://disqus.com/forums/bloggl/count.js';(document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);}());
 
 @@index
 - if admin?

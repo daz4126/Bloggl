@@ -126,8 +126,8 @@ __END__
     #{@post.body}  
 - if settings.disqus
   #disqus_thread
-  %script(type="text/javascript" src="http://disqus.com/forums/#{settings.disqus_shortname}/embed.js")
-  %noscript <a href="http://{settings.disqus_shortname}.disqus.com/?url=ref">View Comments</a>
+  %script(type="text/javascript" src="http://disqus.com/forums/#{settings.disqus}/embed.js")
+  %noscript <a href="http://{settings.disqus}.disqus.com/?url=ref">View Comments</a>
   %a.dsq-brlink(href="http://disqus.com")blog comments powered by <span class="logo-disqus">Disqus</span>
   
 @@article

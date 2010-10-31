@@ -1,16 +1,13 @@
-require 'sinatra'
-require 'data_mapper'
-require 'haml'
-require 'sass'
+%w[rubygems sinatra data_mapper haml sass].each{ |lib| require lib }
+DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
 
 set :title, ENV['TITLE'] ||'Bloggl'
 set :author, ENV['AUTHOR'] ||'@daz4126'
 set :url, ENV['URL'] ||'http://bloggl.com'
 set :token, ENV['TOKEN'] || 'akmxuGD5qige'
 set :password, ENV['PASSWORD'] || 'secret'
-set :disqus_shortname, ENV['DISQUS'] ||nil
-
-DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
+set :disqus, ENV['DISQUS'] ||nil
+set :haml, { :format => :html5 }
 
 class Post
   include DataMapper::Resource 
@@ -27,24 +24,25 @@ class Post
     self.tags = post.slice!(0)
     self.body = post.join("\r\n").strip
   end
-  def summary ; self.body[0,200] ; end
+  def summary ; self.body[0,100] ; end
   def short_url ; "/" + self.id.to_s ; end
   def long_url ; "/#{self.created_at.year.to_s}/#{self.created_at.month.to_s}/#{self.created_at.day.to_s}/#{self.slug}"; end
 end
 
 helpers do
 	def admin? ; request.cookies[settings.author] == settings.token ; end
-	def protected! ; stop [ 401, 'Not authorized' ] unless admin? ; end
+	def protected! ; halt [ 401, 'Not authorized' ] unless admin? ; end
 end
 
 not_found { haml :'404' }
-
-get('/styles.css'){ content_type 'text/css', :charset => 'utf-8' ; sass :styles }
+get('/styles.css'){ content_type 'text/css', :charset => 'utf-8' ; scss :styles }
+get('/application.js') { content_type 'text/javascript' ; render :str, :js, :layout => false }
 
 get '/' do
   @posts = Post.all(:order => [ :created_at.desc ])
-  haml :index, :format => :html5
+  haml :index
 end
+
 post '/' do
   Post.create(:body => params[:post])
   redirect '/'
@@ -53,7 +51,7 @@ end
 get '/edit/:id' do
   protected!
   @post = Post.get(params[:id])
-  haml :edit, :format => :html5
+  haml :edit
 end
 
 put '/:id' do
@@ -64,14 +62,14 @@ put '/:id' do
     redirect @post.long_url
   else
     status 400
-    haml :edit, :format => :html5
+    haml :edit
   end
 end
 
 get '/delete/:id' do
   protected!
   @post = Post.get(params[:id])
-  haml :delete, :format => :html5
+  haml :delete
 end
 
 delete '/:id' do
@@ -83,23 +81,17 @@ end
 get '/:year/:month/:day/:slug' do
   @post = Post.first(:slug => params[:slug])
   raise error(404) unless @post
-  haml :post, :format => :html5
+  haml :post
 end
 
 get '/tags/:tag' do
   @posts = Post.all(:tags.like => "%#{params[:tag]}%",:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "List of posts tagged with #{params[:tag]}" } }
+  haml :list, :locals => { :title => "List of posts tagged with #{params[:tag]}" }
 end
 
 get '/archive' do
   @posts = Post.all(:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "Archive" } }
-end
-
-#will probably ditch this
-get '/posts/:year/:month' do
-  @posts = Post.all(:created_at.gte => "#{params[:year]}-#{params[:month]}-01",:created_at.lte => "#{params[:year]}-#{params[:month]}-31",:order => [ :created_at.desc ])
-  haml :list, { :format => :html5, :locals => { :title => "List of posts from #{params[:month]},#{params[:year]}" } }
+  haml :list, :locals => { :title => "Archive" }
 end
 
 get '/feed' do
@@ -108,24 +100,17 @@ get '/feed' do
   haml :rss, { :layout => false }
 end
 
-get '/admin' do
-  haml :admin, :format => :html5
-end
-
+get('/admin'){ haml :admin }
 post '/admin' do
 	response.set_cookie(settings.author, settings.token) if params[:password] == settings.password
 	redirect '/'
 end
-
-get '/logout' do
-  response.set_cookie(settings.author, false)
-	redirect '/'
-end
+get('/logout'){ response.set_cookie(settings.author, false) ;	redirect '/' }
 
 get '/:id' do
-  @post = Post.get(params[:id])
-  raise error(404) unless @post
-  haml :post, :format => :html5
+  post = Post.get(params[:id])
+  raise error(404) unless post
+  redirect post.long_url
 end
 
 DataMapper.auto_upgrade!
@@ -137,9 +122,17 @@ __END__
     %meta(charset="utf-8")
     %title= settings.title
     %link(rel="stylesheet" media="screen, projection" href="/styles.css")
+    %script(src="http://rightjs.org/hotlink/right.js")
+    %script(src="/application.js")
   %body
-    %h1 <a href="/">#{settings.title}</a>
+    %header(role="banner")
+      %h1 <a href="/">#{settings.title}</a>
     = yield
+    %footer(role="contentinfo")
+      %nav
+        %ul(role="navigation")
+          %li <a href="/archive" rel="archives">archive</a>
+      %small &copy; Copyright #{settings.author} #{Time.now.year}. All Rights Reserved.
 
 @@index
 - if admin?
@@ -147,60 +140,54 @@ __END__
   %form#post(action="/" method="POST")
     %fieldset
       %legend New Post
-      = haml :form, :layout => false
+      = haml :form
     %input(type="submit" value="Create") 
-=haml :list, { :format => :html5, :layout => false, :locals => { :title => "Recent Posts" } }
+=haml :list, :locals => { :title => "Recent Posts" }
   
 @@list
-%h2= title || "List of Posts"
+%h1= title || "List of Posts"
 - if @posts.any?
   %ol#posts.hfeed
     - @posts.each do |post|
       %li
         %article.hentry{:id => "post-#{post.id}"}
-          %header
-            %h3 <a href="#{post.long_url}">#{post.title}</a>
-          %footer
-            %ul.meta
-              %li.tags= post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\">#{tag}</a>" }.join(" ") if post.tags
-              %li.shorturl <a href="#{post.short_url}" title="Short URL">#{settings.url}#{post.short_url}</a>
-              %li.posted 
-                %time{:datetime => post.created_at}
-                  #{post[:created_at].strftime("%d")}/#{post[:created_at].strftime("%b")}/#{post[:created_at].strftime("%Y")}
-              %li.tweet <a href="http://twitter.com/?status=#{post.title} by #{settings.author}: #{settings.url}#{post.short_url}">Tweet this</a>
+          =haml :article, :locals => {:post => post }
           %p.summary
             :markdown
-              #{post.summary}... 
+              #{post.summary}... <a href="#{post.long_url}">(read more)</a>
 - else
   %p No posts!
 
-
 @@post
-%article.hentry
-  %header
-  - if admin?
-    .admin
-      %a(href="/edit/#{@post.id}") EDIT
-      %a(href="/delete/#{@post.id}") DELETE
-  %h2.entry-title= @post.title
-  %footer
-    %ul.meta
-      %li.tags= @post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\" rel=\"tag\">#{tag}</a>" }.join(" ") if @post.tags
-      %li.shorturl <a href="#{@post.short_url}" title="Short URL">#{settings.url}#{@post.short_url}</a>
-      %li.posted 
-        %time{:datetime => @post.created_at}
-          #{@post[:created_at].strftime("%d")}/#{@post[:created_at].strftime("%b")}/#{@post[:created_at].strftime("%Y")}
-      %li.tweet <a href="http://twitter.com/?status=#{@post.title} by #{settings.author}: #{settings.url}#{@post.short_url}">Tweet this</a>
-%div
+%article(class="hentry entry" id="post-#{@post.id}")
+  =haml :article, :locals => {:post => @post }
+%section.entry-content
   :markdown
-    #{@post.body}
-    
-- if settings.disqus_shortname
+    #{@post.body}  
+- if settings.disqus
   #disqus_thread
   %script(type="text/javascript" src="http://disqus.com/forums/#{settings.disqus_shortname}/embed.js")
-  %noscript <a href="http://{settings.disqus_shortname}.disqus.com/?url=ref">View the discussion thread.</a>
+  %noscript <a href="http://{settings.disqus_shortname}.disqus.com/?url=ref">View Comments</a>
   %a.dsq-brlink(href="http://disqus.com")blog comments powered by <span class="logo-disqus">Disqus</span>
-
+  
+@@article
+%header
+  - if admin?
+    .admin
+      %a(href="/edit/#{post.id}") EDIT
+      %a(href="/delete/#{post.id}") DELETE
+  %h1.entry-title= post.title
+%footer
+  %ul.post-info
+    %li.tags= post.tags.split.inject([]) { |list, tag| list << "<a href=\"/tags/#{tag}\" rel=\"tag\">#{tag}</a>" }.join(" ") if post.tags
+    %li.shorturl(rel="bookmark") <a href="#{post.short_url}" title="Short URL">#{settings.url}#{post.short_url}</a>
+    %li.posted 
+      %time{:datetime => post.created_at}
+        #{post[:created_at].strftime("%d")}/#{post[:created_at].strftime("%b")}/#{post[:created_at].strftime("%Y")}
+    %li.tweet <a href="http://twitter.com/?status=#{post.title} by #{settings.author}: #{settings.url}#{post.short_url}">Tweet this</a>
+    - if settings.disqus
+      %li.comments <a href="#{ post.long_url }#disqus_thread">comments</a>
+  
 @@edit
 %form#post(action="/#{@post.id}" method="POST")
   %input(type="hidden" name="_method" value="PUT")
@@ -210,7 +197,7 @@ __END__
   %input(type="submit" value="Update") or <a href='/'>cancel</a>
 
 @@form
-%textarea#post(rows="16" name="post")= (@post.title + "\r\n" + @post.tags + "\r\n\r\n" + @post.body) if @post
+%textarea#post(rows="12" name="post")= (@post.title + "\r\n" + @post.tags + "\r\n\r\n" + @post.body) if @post
 
 @@delete
 %h3 Are you sure you want to delete #{@post.title}?
@@ -244,49 +231,69 @@ __END__
     %content{"type" => "html"}= post.body
 @@404
 %h3 Sorry, but that page cannot be found
-%p Why not have a look at the <a href="/archive">archive</a>?    
+%p Why not have a look at the <a href="/archive" rel="archives">archive</a>?
+
+@@js
+"h2".onClick(function(event) {
+  this.highlight();
+});
 
 @@styles
-h2
-  color: dodgerblue
-  margin: 0
-article h3
-  font: 24px/1.2 verdana,sans-serif
-  margin: 0
-  text-transform: uppercase
-  a, a:visited
-    text-decoration: none
-    color: dodgerblue
-  a:hover
-    color: pink
-.tags, .tweet
-  a,a:visited
-    color: #fff
-    background: #999
-    padding: 0 4px
-    border-radius: 6px
-    font-weight: bold
-    text-decoration: none
-    &:hover
-      background: #666
-.shorturl
-  clear: left
-  a, a:visited
-    color: #999
-article footer
-  font: 10px/1.6 verdana,sans-serif
-  text-transform: uppercase
-  overflow: hidden
-  ul li
-    float: left
-    margin-right: 5px
-#post
-  width: 60%
-  margin: 0 auto
-  textarea
-    font: 18px/1.2 georgia,sans-serif
-    width: 100%
-.meta
-  margin: 0
-  padding: 0
-  list-style: none 
+@import url("http://fonts.googleapis.com/css?family=Droid+Sans+Serif&subset=latin");
+$bg: #fff;
+$primary: #00c;
+$secondary: #fcc;
+$color: #666;
+$font: "Droid serif",Georgia,"Times New Roman",serif;
+$hcolor: $primary;
+$hfont: 'Droid Sans', helvetica, arial, serif;
+$hbold: false;
+$acolor:$primary;
+$ahover:$secondary;
+$avisited:lighten($acolor,10%);
+
+html, body, div, span, object, iframe,h1, h2, h3, h4, h5, h6, p, blockquote, pre,abbr, address, cite, code,del, dfn, em, img, ins, kbd, q, samp,small, strong, sub, sup, var,b, i,dl, dt, dd, ol, ul, li,fieldset, form, label, legend,table, caption, tbody, tfoot, thead, tr, th, td,article, aside, canvas, details, figcaption, figure, footer, header, hgroup, menu, nav, section, summary,time, mark, audio, video{ margin: 0;padding: 0;border: 0;outline: 0;font-size: 100%;vertical-align: baseline;background: transparent; }
+article,aside,canvas,details,figcaption,figure,
+footer,header,hgroup,menu,nav,section,summary{ display: block; }
+body{ font-family: $font;background-color: $bg;color: $color; }
+h1,h2,h3,h4,h5,h6{ color: $hcolor;font-family: $hfont;@if $hbold { font-weight: bold; } @else {font-weight: normal;}}
+h1{font-size:4.2em;}h2{font-size:3em;}h3{font-size:2.4em;}
+h4{font-size:1.6em;}h5{font-size:1.2em;}h6{font-size:1em;}
+p{font-size:1.2em;line-height:1.5;margin:1em 0;max-width:40em;}
+li{font-size:1.2em;line-height:2;}
+a,a:link{color:$acolor;}
+a:visited{color:$avisited;}
+a:hover{color:$ahover;}
+img{max-width:100%;_width:100%;display:block;}
+
+article{
+  font-size: 12px;
+  h1{
+    text-transform: uppercase;
+    a, a:visited{
+    text-decoration: none;}}}
+.tags, .tweet{
+  a,a:visited{
+    color: #fff;
+    background: #999;
+    padding: 0 4px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+    &:hover{background: #666;}}}
+.shorturl{
+  clear: left;
+  a, a:visited{
+    color: #999;}}
+article footer{
+  font: 10px/1.6 verdana,sans-serif;
+  text-transform: uppercase;
+  overflow: hidden;
+  ul li{float: left;margin-right: 5px;}}
+#post{
+  width: 60%;
+  margin: 0 auto;
+  textarea{
+    font: 18px/1.2 georgia,sans-serif;
+    width: 100%;}}
+.post-info{list-style: none;}

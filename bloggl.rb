@@ -91,6 +91,12 @@ __END__
           %li <a href="/archive" rel="archives">archive</a>
           %li <a href="/feed">RSS Feed</a>
       %small &copy; Copyright #{settings.author} #{Time.now.year}. All Rights Reserved.
+    %script
+      var disqus_shortname = 'bloggl';
+      (function () {
+        var s = document.createElement('script'); s.async = true;
+        s.src = 'http://disqus.com/forums/bloggl/count.js';
+        (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);}());
 
 @@index
 - if admin?

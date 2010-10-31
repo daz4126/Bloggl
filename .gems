@@ -1,4 +1,6 @@
 sinatra --version 1.1
 haml
-data_mapper
+dm_core
+dm_migrations
+dm_validations
 dm-postgres-adapter

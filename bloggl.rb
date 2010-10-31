@@ -1,4 +1,4 @@
-%w[rubygems sinatra dm_core dm_migrations dm_validations haml sass].each{ |lib| require lib }
+%w[rubygems sinatra dm-core dm-migrations dm-validations dm-timestamps haml sass].each{ |lib| require lib }
 DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
 set :title, ENV['TITLE'] ||'Bloggl'
 set :author, ENV['AUTHOR'] ||'@daz4126'

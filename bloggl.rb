@@ -1,7 +1,7 @@
 %w[rubygems sinatra dm-core dm-migrations dm-validations dm-timestamps haml sass].each{ |lib| require lib }
 DataMapper.setup(:default, ENV['DATABASE_URL'] || "sqlite3://#{Dir.pwd}/development.db")
 set :title, ENV['TITLE'] ||'Bloggl'
-set :author, ENV['AUTHOR'] ||'@daz4126'
+set :author, ENV['AUTHOR'] ||'daz4126'
 set :url, ENV['URL'] ||'http://bloggl.com'
 set :token, ENV['TOKEN'] || 'akmxuGD5qige'
 set :password, ENV['PASSWORD'] || 'secret'
@@ -144,7 +144,7 @@ __END__
     %li.posted 
       %time{:datetime => post.created_at}
         #{post[:created_at].strftime("%d")}/#{post[:created_at].strftime("%b")}/#{post[:created_at].strftime("%Y")}
-    %li.tweet <a href="http://twitter.com/?status=#{post.title} by #{settings.author}: #{settings.url}#{post.short_url}">Tweet this</a>
+    %li.tweet <a href="http://twitter.com/?status=#{post.title} by @#{settings.author}: #{settings.url}#{post.short_url}">Tweet this</a>
     - if settings.disqus
       %li.comments <a href="#{ post.long_url }#disqus_thread">comments</a>
   

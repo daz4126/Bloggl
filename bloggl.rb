@@ -119,7 +119,7 @@ __END__
     #{@post.body}  
 - if settings.disqus
   #disqus_thread
-  %script var disqus_shortname=#{settings.disqus};var disqus_identifier=#{settings.url+@post.short_url};var disqus_title=#{@post.title};var disqus_url=#{settings.url+@post.long_url};(function () {var dsq = document.createElement('script'); dsq.async = true;dsq.src = 'http://disqus.com/forums/#{settings.disqus}/count.js';(document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(dsq);}());
+  %script var disqus_shortname='#{settings.disqus}';var disqus_identifier='#{settings.url+@post.short_url}';var disqus_title='#{@post.title}';var disqus_url='#{settings.url+@post.long_url}';(function () {var dsq = document.createElement('script'); dsq.async = true;dsq.src = 'http://disqus.com/forums/#{settings.disqus}/count.js';(document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(dsq);}());
   %noscript <a href="http://#{settings.disqus}.disqus.com/?url=ref">View Comments</a>
   %a.dsq-brlink(href="http://disqus.com")blog comments powered by <span class="logo-disqus">Disqus</span>
 

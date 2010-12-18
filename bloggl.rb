@@ -29,7 +29,7 @@ class Bloggl < Sinatra::Base
   end
   not_found { haml :'404' }
   get('/blog'){ @posts = Post.all(:limit => 10,:order => [ :created_at.desc ]) ; haml :index }
-  post('/blog'){ Post.create(:body => params[:post]) ;   redirect '/' }
+  post('/blog'){ Post.create(:body => params[:post]) ; redirect '/blog' }
   get('/blog/edit/:id'){ protected! ; @post = Post.get(params[:id]) ; haml :edit }
   put '/blog/:id' do
     protected!
@@ -92,7 +92,7 @@ __END__
 @@index
 - if admin?
   %p.logout You are logged in as #{settings.author} (<a href='/logout'>logout</a>)
-  %form#post(action="/" method="POST")
+  %form#post(action="/blog" method="POST")
     %fieldset
       %legend New Post
       = haml :form
@@ -141,7 +141,7 @@ __END__
     - if settings.disqus
       %li.comments <a href="#{ post.long_url }#disqus_thread">comments</a> 
 @@edit
-%form#post(action="/#{@post.id}" method="POST")
+%form#post(action="/blog/#{@post.id}" method="POST")
   %input(type="hidden" name="_method" value="PUT")
   %fieldset
     %legend Update Post

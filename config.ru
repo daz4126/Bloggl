@@ -1,2 +1,2 @@
 require 'bloggl'
-run Sinatra::Application
+run Bloggl
